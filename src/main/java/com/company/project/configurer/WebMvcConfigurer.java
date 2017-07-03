@@ -8,6 +8,7 @@ import com.alibaba.fastjson.support.spring.FastJsonHttpMessageConverter4;
 import com.company.project.core.Result;
 import com.company.project.core.ResultCode;
 import com.company.project.core.ServiceException;
+
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -21,11 +22,13 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -41,6 +44,17 @@ public class WebMvcConfigurer extends WebMvcConfigurerAdapter {
     private final Logger logger = LoggerFactory.getLogger(WebMvcConfigurer.class);
     @Value("${spring.profiles.active}")
     private String env;//当前激活的配置文件
+
+    //使用swagger2 UI 的 springMVC配置
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("swagger-ui.html")
+                .addResourceLocations("classpath:/META-INF/resources/");
+
+        registry.addResourceHandler("/webjars/**")
+                .addResourceLocations("classpath:/META-INF/resources/webjars/");
+    }
+
 
     //使用阿里 FastJson 作为JSON MessageConverter
     @Override
@@ -58,9 +72,11 @@ public class WebMvcConfigurer extends WebMvcConfigurerAdapter {
 
     //统一异常处理
     @Override
-    public void configureHandlerExceptionResolvers(List<HandlerExceptionResolver> exceptionResolvers) {
+    public void configureHandlerExceptionResolvers(
+            List<HandlerExceptionResolver> exceptionResolvers) {
         exceptionResolvers.add(new HandlerExceptionResolver() {
-            public ModelAndView resolveException(HttpServletRequest request, HttpServletResponse response, Object handler, Exception e) {
+            public ModelAndView resolveException(HttpServletRequest request,
+                    HttpServletResponse response, Object handler, Exception e) {
                 Result result = new Result();
                 if (handler instanceof HandlerMethod) {
                     HandlerMethod handlerMethod = (HandlerMethod) handler;
@@ -69,7 +85,8 @@ public class WebMvcConfigurer extends WebMvcConfigurerAdapter {
                         result.setCode(ResultCode.FAIL).setMessage(e.getMessage());
                         logger.info(e.getMessage());
                     } else {
-                        result.setCode(ResultCode.INTERNAL_SERVER_ERROR).setMessage("接口 [" + request.getRequestURI() + "] 内部错误，请联系管理员");
+                        result.setCode(ResultCode.INTERNAL_SERVER_ERROR).setMessage(
+                                "接口 [" + request.getRequestURI() + "] 内部错误，请联系管理员");
                         String message = String.format("接口 [%s] 出现异常，方法：%s.%s，异常摘要：%s",
                                 request.getRequestURI(),
                                 handlerMethod.getBean().getClass().getName(),
@@ -79,7 +96,8 @@ public class WebMvcConfigurer extends WebMvcConfigurerAdapter {
                     }
                 } else {
                     if (e instanceof NoHandlerFoundException) {
-                        result.setCode(ResultCode.NOT_FOUND).setMessage("接口 [" + request.getRequestURI() + "] 不存在");
+                        result.setCode(ResultCode.NOT_FOUND).setMessage(
+                                "接口 [" + request.getRequestURI() + "] 不存在");
                     } else {
                         result.setCode(ResultCode.INTERNAL_SERVER_ERROR).setMessage(e.getMessage());
                         logger.error(e.getMessage(), e);
@@ -106,14 +124,16 @@ public class WebMvcConfigurer extends WebMvcConfigurerAdapter {
             registry.addInterceptor(new HandlerInterceptorAdapter() {
 
                 @Override
-                public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+                public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
+                        Object handler) throws Exception {
                     String sign = request.getParameter("sign");
                     //验证签名
                     if (StringUtils.isNotEmpty(sign) && validateSign(request, sign)) {
                         return true;
                     } else {
                         logger.warn("签名认证失败，请求接口：{}，请求IP：{}，请求参数：{}",
-                                request.getRequestURI(), getIpAddress(request), JSON.toJSONString(request.getParameterMap()));
+                                request.getRequestURI(), getIpAddress(request),
+                                JSON.toJSONString(request.getParameterMap()));
 
                         Result result = new Result();
                         result.setCode(ResultCode.UNAUTHORIZED).setMessage("签名认证失败");
@@ -138,10 +158,6 @@ public class WebMvcConfigurer extends WebMvcConfigurerAdapter {
 
     /**
      * 一个简单的签名认证，规则：请求参数按ASCII码排序后，拼接为a=value&b=value...这样的字符串后进行MD5
-     *
-     * @param request
-     * @param requestSign
-     * @return
      */
     private boolean validateSign(HttpServletRequest request, String requestSign) {
         List<String> keys = new ArrayList<String>(request.getParameterMap().keySet());
@@ -154,8 +170,9 @@ public class WebMvcConfigurer extends WebMvcConfigurerAdapter {
                 linkString += key + "=" + request.getParameter(key) + "&";
             }
         }
-        if (StringUtils.isEmpty(linkString))
+        if (StringUtils.isEmpty(linkString)) {
             return false;
+        }
 
         linkString = linkString.substring(0, linkString.length() - 1);
         String key = "Potato";//自己修改
